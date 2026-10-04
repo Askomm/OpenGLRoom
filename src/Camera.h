@@ -8,9 +8,9 @@ class Camera
 public:
     glm::vec3 Position;
 
-    Camera(glm::vec3 position = glm::vec3(0.0f, 1.5f, 3.0f));
+    Camera(glm::vec3 position = glm::vec3(0.0f, 1.6f, 6.5f));
 
-    glm::mat4 GetViewMatrix();
+    glm::mat4 GetViewMatrix() const;
 
     void ProcessKeyboard(
         bool forward,
@@ -20,6 +20,23 @@ public:
         float deltaTime
     );
 
+    void ProcessMouseMovement(float xOffset, float yOffset, bool constrainPitch = true);
+    void ProcessMouseScroll(float yOffset);
+
+    float GetZoom() const;
+
 private:
-    float MovementSpeed = 3.0f;
+    glm::vec3 Front;
+    glm::vec3 Up;
+    glm::vec3 Right;
+    glm::vec3 WorldUp;
+
+    float Yaw;
+    float Pitch;
+
+    float MovementSpeed;
+    float MouseSensitivity;
+    float Zoom;
+
+    void UpdateCameraVectors();
 };
