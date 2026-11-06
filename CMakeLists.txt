@@ -33,6 +33,11 @@ set_target_properties(glfw PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${GLFW_INCLUDE_DIR}"
 )
 
+# Match the debug DLL CRT embedded in the supplied GLFW library in all configurations.
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+endif()
+
 add_executable(OpenGLRoom
     src/Main.cpp
     src/Shader.cpp

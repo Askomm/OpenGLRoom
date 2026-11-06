@@ -1,79 +1,21 @@
-# OpenGL Room
+# Topic 16 – Room interior with lamps
 
-This is our OpenGL final project demo : a small 3D room with two lamps and simple furniture.
+## Renderer contribution (Person 1)
 
-For the Week 5 demo, the main parts are already connected:
+This first-stage snapshot builds on the Week 5 scene. Two desk lights and a movable ceiling pendant use per-fragment Phong shading. The pendant renders a 1024 × 1024 depth texture for filtered shadows. Press H for a controlled comparison. The second changeset adds the finished interior and on-screen controls.
 
-- A real 3D room scene
-- Modern OpenGL 3.3 core profile
-- Vertex and fragment shaders
-- Model -> View -> Projection transformations
-- Blinn-Phong style lighting with two point lights
-- Emissive lamp bulbs
-- A simple procedural checker pattern on the floor
-- Camera movement with WASD
-- Mouse look and scroll zoom
-- `1` and `2` keys to turn each lamp on/off
+## Windows build and run
 
-## Controls
+Use an x64 Native Tools Command Prompt for Visual Studio 2026 on Windows 10 or 11, with the Desktop development with C++ workload, CMake, and an OpenGL 3.3-capable driver. Run from the directory containing CMakeLists.txt:
 
-| Key | Action |
-| --- | --- |
-| W / S | Move forward / backward |
-| A / D | Move left / right |
-| Mouse | Look around |
-| Mouse wheel | Zoom |
-| 1 | Toggle left lamp |
-| 2 | Toggle right lamp |
-| Esc | Exit |
-
-## Project structure
-
-```text
-OpenGLRoom/
-├── CMakeLists.txt
-├── README.md
-├── src/
-│   ├── Main.cpp
-│   ├── Camera.cpp
-│   ├── Camera.h
-│   ├── Model.cpp
-│   ├── Model.h
-│   ├── Shader.cpp
-│   ├── Shader.h
-│   └── glad.c
-├── shaders/
-│   ├── vertex.glsl
-│   └── fragment.glsl
-├── textures/
-├── models/
-├── Libraries/
-└── report/
-```
-
-The current scene is made from simple procedural geometry, so extra model or texture files will be added later.
-
-## Build
-
-We are using Visual Studio 2026 (Visual Studio 18), CMake, GLFW, GLAD and GLM on Windows. The project uses C++20.
-
-The easiest way is to open the project folder in Visual Studio 2026 and let CMake configure it.
-
-From the project folder, the equivalent CMake command is:
-
-```powershell
+```bat
 cmake -S . -B build -G "Visual Studio 18 2026" -A x64
 cmake --build build --config Debug
-```
-
-Then run:
-
-```powershell
 .\build\Debug\OpenGLRoom.exe
 ```
 
-## Week 5 demo
+For Visual Studio 2022 use its matching generator, "Visual Studio 17 2022". Choose a CMake version that supports the generator installed on your PC. The project bundles GLAD, GLM and the x64 Windows GLFW 3.5.1 static library. The GLFW binary embeds the MSVC debug DLL runtime, so use the Visual Studio developer environment. CMake copies the shader and texture directories beside the executable. Keep them there when moving the program.
 
-The rendering side and the camera are connected now. The scene shows how the transformation pipeline, shader code, lighting and user input work together.
+## Input
 
-More models, materials and scene details will be added in the later weeks.
+WASD moves the camera, mouse looks, and the wheel zooms. Keys 1, 2, and 3 toggle the desk fixtures and pendant respectively. J/L move the pendant; Space starts or pauses its automatic sweep. H toggles pendant shadows, minus/equal adjust exposure, and Esc exits.

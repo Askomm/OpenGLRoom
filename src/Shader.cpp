@@ -78,6 +78,9 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath)
         glLinkProgram(ID);
         CheckCompileErrors(ID, "PROGRAM");
 
+        GLint linked = GL_FALSE;
+        glGetProgramiv(ID, GL_LINK_STATUS, &linked);
+        if (!linked) { glDeleteProgram(ID); ID = 0; }
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
     }

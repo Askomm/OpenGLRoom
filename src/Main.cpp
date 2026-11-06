@@ -5,6 +5,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <cmath>
+#include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -14,8 +16,8 @@
 
 namespace
 {
-    constexpr unsigned int SCR_WIDTH = 1000;
-    constexpr unsigned int SCR_HEIGHT = 700;
+    constexpr unsigned int SCR_WIDTH = 1280;
+    constexpr unsigned int SCR_HEIGHT = 720;
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
@@ -28,6 +30,13 @@ namespace
 
     bool lamp1On = true;
     bool lamp2On = true;
+    bool pendantOn = true;
+    bool shadowsOn = true;
+    float exposure = 1.0f;
+    glm::vec3 pendantPosition(0.6f, 3.18f, 0.65f);
+
+    bool animatePendant = false;
+    float sweepDirection = 1.0f;
 
     struct Vertex
     {
@@ -38,6 +47,7 @@ namespace
     class Mesh
     {
     public:
+        bool twoSided = false; // Open shades must also show their inner surface.
         unsigned int VAO = 0;
         unsigned int VBO = 0;
         unsigned int EBO = 0;
@@ -86,8 +96,10 @@ namespace
 
         void Draw() const
         {
+            if (twoSided) glDisable(GL_CULL_FACE);
             glBindVertexArray(VAO);
             glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
+            if (twoSided) glEnable(GL_CULL_FACE);
             glBindVertexArray(0);
         }
 
@@ -191,7 +203,7 @@ namespace
             const unsigned int bottomB = static_cast<unsigned int>(vertices.size());
             vertices.push_back({glm::vec3(radius * std::cos(a1), -halfHeight, radius * std::sin(a1)),
                                 glm::vec3(0.0f, -1.0f, 0.0f)});
-            indices.insert(indices.end(), {bottomStart, bottomB, bottomA});
+            indices.insert(indices.end(), {bottomStart, bottomA, bottomB});
 
             const unsigned int topA = static_cast<unsigned int>(vertices.size());
             vertices.push_back({glm::vec3(radius * std::cos(a0), halfHeight, radius * std::sin(a0)),
@@ -199,7 +211,7 @@ namespace
             const unsigned int topB = static_cast<unsigned int>(vertices.size());
             vertices.push_back({glm::vec3(radius * std::cos(a1), halfHeight, radius * std::sin(a1)),
                                 glm::vec3(0.0f, 1.0f, 0.0f)});
-            indices.insert(indices.end(), {topStart, topA, topB});
+            indices.insert(indices.end(), {topStart, topB, topA});
         }
 
         return new Mesh(vertices, indices);
@@ -275,7 +287,7 @@ namespace
                 const unsigned int c = a + static_cast<unsigned int>(rowSize);
                 const unsigned int d = c + 1;
 
-                indices.insert(indices.end(), {a, c, b, b, c, d});
+                indices.insert(indices.end(), {a, b, c, b, d, c});
             }
         }
 
@@ -412,59 +424,35 @@ namespace
         if (twoDown && !previousTwo)
             lamp2On = !lamp2On;
 
+        static bool previousThree = false, previousShadow = false;
+        bool three = glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS;
+        bool shadow = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
+        if (three && !previousThree) pendantOn = !pendantOn;
+        if (shadow && !previousShadow) shadowsOn = !shadowsOn;
+        previousThree = three;
+        previousShadow = shadow;
+        exposure = std::clamp(exposure + deltaTime * (glfwGetKey(window, GLFW_KEY_EQUAL)
+            - glfwGetKey(window, GLFW_KEY_MINUS)), 0.25f, 3.0f);
+        static bool previousSpace = false;
+        bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+        if (space && !previousSpace) animatePendant = !animatePendant;
+        previousSpace = space;
+        float manual = float(glfwGetKey(window, GLFW_KEY_L) - glfwGetKey(window, GLFW_KEY_J));
+        float speed = manual != 0 ? manual : (animatePendant ? 0.6f*sweepDirection : 0.0f);
+        pendantPosition.x = std::clamp(pendantPosition.x + std::min(deltaTime,0.1f)*speed,-2.3f,2.3f);
+        if (pendantPosition.x >= 2.3f) sweepDirection = -1;
+        if (pendantPosition.x <= -2.3f) sweepDirection = 1;
         previousOne = oneDown;
         previousTwo = twoDown;
     }
 }
 
-int main()
+static int RunRoom(GLFWwindow* window)
 {
-    if (!glfwInit())
-    {
-        std::cerr << "Failed to initialize GLFW.\n";
-        return -1;
-    }
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(
-        SCR_WIDTH,
-        SCR_HEIGHT,
-        "OpenGL Room - Week 5 Demo",
-        nullptr,
-        nullptr
-    );
-
-    if (!window)
-    {
-        std::cerr << "Failed to create GLFW window.\n";
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    glfwSetCursorPosCallback(window, MouseCallback);
-    glfwSetScrollCallback(window, ScrollCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-    if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
-    {
-        std::cerr << "Failed to initialize GLAD.\n";
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    glEnable(GL_DEPTH_TEST);
-
+    Shader depth("shaders/shadow.vert", "shaders/shadow.frag");
     Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
-    if (shader.ID == 0)
+    if (!shader.ID || !depth.ID)
     {
-        glfwDestroyWindow(window);
-        glfwTerminate();
         return -1;
     }
 
@@ -473,54 +461,27 @@ int main()
     std::unique_ptr<Mesh> frustum(CreateFrustum(0.5f, 0.25f, 1.0f, 32));
     std::unique_ptr<Mesh> sphere(CreateSphere(0.5f, 24, 16));
 
-    shader.Use();
-    shader.SetVec3("ambientLight", glm::vec3(0.055f, 0.065f, 0.08f));
+    constexpr int shadowSize = 1024;
+    GLuint shadowMap, shadowFbo;
+    glGenTextures(1, &shadowMap);
+    glBindTexture(GL_TEXTURE_2D, shadowMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowSize, shadowSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenFramebuffers(1, &shadowFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Incomplete pendant shadow framebuffer\n";
+        return 1;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    while (!glfwWindowShouldClose(window))
-    {
-        const float currentFrame = static_cast<float>(glfwGetTime());
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
-
-        ProcessInput(window);
-
-        glClearColor(0.035f, 0.045f, 0.065f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        int framebufferWidth = 0;
-        int framebufferHeight = 0;
-        glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
-
-        const float aspect =
-            framebufferHeight > 0
-                ? static_cast<float>(framebufferWidth) / static_cast<float>(framebufferHeight)
-                : 1.0f;
-
-        const glm::mat4 projection = glm::perspective(
-            glm::radians(camera.GetZoom()),
-            aspect,
-            0.1f,
-            100.0f
-        );
-
-        const glm::mat4 view = camera.GetViewMatrix();
-
-        shader.Use();
-        shader.SetMat4("view", view);
-        shader.SetMat4("projection", projection);
-        shader.SetVec3("viewPos", camera.Position);
-
-        const glm::vec3 lamp1Position(-1.25f, 2.10f, -1.45f);
-        const glm::vec3 lamp2Position( 1.25f, 2.10f, -1.45f);
-
-        shader.SetVec3("lights[0].position", lamp1Position);
-        shader.SetVec3("lights[0].color", glm::vec3(1.0f, 0.45f, 0.12f));
-        shader.SetFloat("lights[0].intensity", lamp1On ? 3.2f : 0.0f);
-
-        shader.SetVec3("lights[1].position", lamp2Position);
-        shader.SetVec3("lights[1].color", glm::vec3(1.0f, 0.72f, 0.30f));
-        shader.SetFloat("lights[1].intensity", lamp2On ? 2.8f : 0.0f);
-
+    auto drawScene = [&](Shader& shader) {
         // Room
         DrawObject(
             *cube, shader,
@@ -596,11 +557,141 @@ int main()
         DrawLamp(*cylinder, *frustum, *sphere, shader, -1.25f, -1.45f, lamp1On);
         DrawLamp(*cylinder, *frustum, *sphere, shader, 1.25f, -1.45f, lamp2On);
 
+        DrawObject(*cylinder, shader, Transform({pendantPosition.x,3.72f,0.65f},{0.04f,0.56f,0.04f}), {0.15f,0.15f,0.15f});
+        DrawObject(*frustum, shader, Transform({pendantPosition.x,3.45f,0.65f},{0.95f,0.39f,0.95f}), {0.26f,0.43f,0.34f});
+        // The emitter sits at the shadow camera and must not occlude its own light.
+        if (&shader != &depth)
+            DrawObject(*sphere, shader, Transform(pendantPosition,{0.22f,0.22f,0.22f}), {0.4f,0.38f,0.3f},
+                       false, {1.0f,0.89f,0.68f}, pendantOn ? 4.0f : 0.0f);
+    };
+    frustum->twoSided = true;
+    shader.Use();
+    shader.SetVec3("ambientLight", glm::vec3(0.055f, 0.065f, 0.08f));
+
+    while (!glfwWindowShouldClose(window))
+    {
+        const float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        ProcessInput(window);
+        const glm::mat4 lightVP = glm::perspective(glm::radians(120.0f),1.0f,0.1f,10.0f)
+        * glm::lookAt(pendantPosition, pendantPosition + glm::vec3(0,-1,0),glm::vec3(0,0,-1));
+
+        int framebufferWidth, framebufferHeight;
+        glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+        if (!framebufferWidth || !framebufferHeight) { glfwWaitEvents(); continue; }
+        if (pendantOn && shadowsOn) {
+            glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
+            glViewport(0,0,shadowSize,shadowSize);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            depth.Use();
+            depth.SetMat4("lightVP", lightVP);
+            drawScene(depth);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0,0,framebufferWidth,framebufferHeight);
+        glClearColor(0.035f,0.045f,0.065f,1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        const float aspect =
+            framebufferHeight > 0
+                ? static_cast<float>(framebufferWidth) / static_cast<float>(framebufferHeight)
+                : 1.0f;
+
+        const glm::mat4 projection = glm::perspective(
+            glm::radians(camera.GetZoom()),
+            aspect,
+            0.1f,
+            100.0f
+        );
+
+        const glm::mat4 view = camera.GetViewMatrix();
+
+        shader.Use();
+        shader.SetMat4("view", view);
+        shader.SetMat4("projection", projection);
+        shader.SetVec3("viewPos", camera.Position);
+
+        const glm::vec3 lamp1Position(-1.25f, 2.10f, -1.45f);
+        const glm::vec3 lamp2Position( 1.25f, 2.10f, -1.45f);
+
+        shader.SetVec3("lights[0].position", lamp1Position);
+        shader.SetVec3("lights[0].color", glm::vec3(1.0f, 0.45f, 0.12f));
+        shader.SetFloat("lights[0].intensity", lamp1On ? 3.2f : 0.0f);
+
+        shader.SetVec3("lights[1].position", lamp2Position);
+        shader.SetVec3("lights[1].color", glm::vec3(1.0f, 0.72f, 0.30f));
+        shader.SetFloat("lights[1].intensity", lamp2On ? 2.8f : 0.0f);
+
+        shader.SetVec3("lights[2].position", pendantPosition);
+        shader.SetVec3("lights[2].color", {1.0f,0.89f,0.68f});
+        shader.SetFloat("lights[2].intensity", pendantOn ? 5.5f : 0.0f);
+        shader.SetFloat("exposure", exposure);
+        shader.SetMat4("lightVP", lightVP);
+        shader.SetBool("shadowsOn", shadowsOn);
+        shader.SetInt("shadowMap", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, shadowMap);
+        drawScene(shader);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
+    glDeleteTextures(1, &shadowMap);
+    glDeleteFramebuffers(1, &shadowFbo);
+    return 0;
+}
+
+int main(int argc, char** argv)
+{
+    auto assetRoot = std::filesystem::absolute(argv[0]).parent_path();
+    if (std::filesystem::exists(assetRoot / "shaders"))
+        std::filesystem::current_path(assetRoot);
+    if (!glfwInit())
+    {
+        std::cerr << "Failed to initialize GLFW.\n";
+        return -1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(
+        SCR_WIDTH,
+        SCR_HEIGHT,
+        "Topic 16 - Room interior with lamps",
+        nullptr,
+        nullptr
+    );
+
+    if (!window)
+    {
+        std::cerr << "Failed to create GLFW window.\n";
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
+    glfwSetCursorPosCallback(window, MouseCallback);
+    glfwSetScrollCallback(window, ScrollCallback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
+    {
+        std::cerr << "Failed to initialize GLAD.\n";
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    const int result = RunRoom(window);
     glfwDestroyWindow(window);
     glfwTerminate();
-    return 0;
+    return result;
 }
