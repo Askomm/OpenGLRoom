@@ -8,11 +8,11 @@ Camera::Camera(glm::vec3 position)
       Up(glm::vec3(0.0f, 1.0f, 0.0f)),
       Right(glm::vec3(1.0f, 0.0f, 0.0f)),
       WorldUp(glm::vec3(0.0f, 1.0f, 0.0f)),
-      Yaw(-90.0f),
+      Yaw(-104.0f),
       Pitch(0.0f),
       MovementSpeed(3.0f),
       MouseSensitivity(0.10f),
-      Zoom(45.0f)
+      Zoom(58.0f)
 {
     UpdateCameraVectors();
 }
@@ -30,13 +30,15 @@ void Camera::ProcessKeyboard(
     float deltaTime
 )
 {
-    const float velocity = MovementSpeed * deltaTime;
+    const float velocity = MovementSpeed * std::min(deltaTime,0.1f);
+    const glm::vec3 heading = glm::normalize(glm::vec3(Front.x,0,Front.z));
+    const glm::vec3 before = Position;
 
     if (forward)
-        Position += Front * velocity;
+        Position += heading * velocity;
 
     if (backward)
-        Position -= Front * velocity;
+        Position -= heading * velocity;
 
     if (left)
         Position -= Right * velocity;
@@ -46,8 +48,13 @@ void Camera::ProcessKeyboard(
 
     // Keep the camera inside the room and at a sensible eye height.
     Position.x = std::clamp(Position.x, -3.4f, 3.4f);
-    Position.y = std::clamp(Position.y, 0.6f, 3.3f);
-    Position.z = std::clamp(Position.z, -3.4f, 6.8f);
+    Position.y = 1.68f;
+    Position.z = std::clamp(Position.z, -3.4f, 3.6f);
+    auto inside = [&](float left, float right, float back, float front) {
+        return Position.x > left && Position.x < right && Position.z > back && Position.z < front;
+    };
+    if (inside(-2.20f,2.20f,-2.48f,-.42f) || inside(-1.10f,.15f,-.25f,.98f)
+        || inside(-3.9f,-1.80f,-3.9f,-2.75f)) Position = before;
 }
 
 void Camera::ProcessMouseMovement(float xOffset, float yOffset, bool constrainPitch)

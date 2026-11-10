@@ -6,3 +6,7 @@
 *.md text eol=lf
 *.cmake text eol=lf
 CMakeLists.txt text eol=lf
+*.ppm binary
+*.pptx binary
+*.docx binary
+*.mp4 binary

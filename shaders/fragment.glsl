@@ -44,8 +44,25 @@ float visibility(vec3 normal, vec3 lightDir)
     return sum / 9.0;
 }
 
+uniform int pattern;
+uniform sampler2D landscape;
+
 vec3 GetBaseColor()
 {
+    if (pattern == 1) {
+        vec2 uv = FragPos.xz;
+        float row = floor(uv.y * 3.0);
+        vec2 seam = fract(vec2(uv.x * 0.48 + row * 0.37, uv.y * 3.0));
+        float grain = sin(33.0 * uv.y + 1.2*sin(3.0*uv.x) + sin(11.0*uv.y));
+        float edge = smoothstep(0.002,0.020,min(seam.x,seam.y));
+        return objectColor * (0.85 + 0.13*grain) * mix(0.54,1.0,edge);
+    }
+    if (pattern == 2) {
+        vec2 uv = FragPos.xz;
+        float band = abs(fract(uv.y*1.6)-0.5);
+        float weave = sin(110.0*uv.x)*sin(75.0*uv.y);
+        return objectColor*(0.86+0.09*weave) + vec3(.22,.14,.065)*smoothstep(.38,.43,band);
+    }
     if (!useChecker)
         return objectColor;
 
@@ -59,6 +76,11 @@ vec3 GetBaseColor()
 
 void main()
 {
+    if (pattern == 3) {
+        vec2 uv = vec2((FragPos.x-0.4)/4.45+0.5,0.5-(FragPos.y-2.48)/1.76);
+        FragColor = vec4(texture(landscape,uv).rgb,1.0);
+        return;
+    }
     vec3 baseColor = GetBaseColor();
     vec3 normal = normalize(Normal);
     vec3 viewDir = normalize(viewPos - FragPos);

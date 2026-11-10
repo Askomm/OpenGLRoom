@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <fstream>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -22,8 +23,9 @@ namespace
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
 
-    Camera camera(glm::vec3(0.0f, 1.6f, 6.5f));
+    Camera camera(glm::vec3(1.2f, 1.68f, 3.38f));
 
+    bool showHelp = false;
     bool firstMouse = true;
     float lastMouseX = SCR_WIDTH * 0.5f;
     float lastMouseY = SCR_HEIGHT * 0.5f;
@@ -33,7 +35,7 @@ namespace
     bool pendantOn = true;
     bool shadowsOn = true;
     float exposure = 1.0f;
-    glm::vec3 pendantPosition(0.6f, 3.18f, 0.65f);
+    glm::vec3 pendantPosition(0.75f, 3.02f, -0.55f);
 
     bool animatePendant = false;
     float sweepDirection = 1.0f;
@@ -328,6 +330,8 @@ namespace
         return model;
     }
 
+    #include "Interior.h"
+
     void DrawLamp(
         Mesh& cylinder,
         Mesh& frustum,
@@ -346,27 +350,27 @@ namespace
 
         DrawObject(
             frustum, shader,
-            Transform(glm::vec3(x, 1.25f, z), glm::vec3(0.42f, 0.12f, 0.42f)),
+            Transform(glm::vec3(x, 1.20f, z), glm::vec3(0.42f, 0.12f, 0.42f)),
             metal, false, glm::vec3(0.0f), 0.0f, 64.0f
         );
 
         DrawObject(
             cylinder, shader,
-            Transform(glm::vec3(x, 1.52f, z), glm::vec3(1.0f, 0.55f, 1.0f)),
+            Transform(glm::vec3(x, 1.53f, z), glm::vec3(0.070f, 0.65f, 0.070f)),
             metal, false, glm::vec3(0.0f), 0.0f, 64.0f
         );
 
         DrawObject(
             frustum, shader,
-            Transform(glm::vec3(x, 1.95f, z), glm::vec3(1.05f, 0.75f, 1.05f)),
+            Transform(glm::vec3(x, 2.22f, z), glm::vec3(0.72f, 0.35f, 0.72f)),
             shade, false, glm::vec3(0.05f, 0.02f, 0.01f), 0.0f, 24.0f
         );
 
         DrawObject(
             sphere, shader,
-            Transform(glm::vec3(x, 2.10f, z), glm::vec3(0.13f)),
+            Transform(glm::vec3(x, 1.98f, z), glm::vec3(0.19f)),
             bulb, false,
-            isOn ? glm::vec3(1.0f, 0.45f, 0.08f) : glm::vec3(0.0f),
+            isOn ? (x < 0 ? glm::vec3(1.0f, 0.45f, 0.08f) : glm::vec3(.4f,.68f,1.0f)) : glm::vec3(0.0f),
             isOn ? 2.5f : 0.0f,
             16.0f
         );
@@ -412,6 +416,18 @@ namespace
 
         camera.ProcessKeyboard(forward, backward, left, right, deltaTime);
 
+        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+            camera = Camera({1.2f,1.68f,3.38f});
+            lamp1On = lamp2On = pendantOn = shadowsOn = true;
+            exposure = 1.0f;
+            pendantPosition.x = 0.75f;
+            animatePendant = false;
+            sweepDirection = 1.0f;
+        }
+        static bool previousHelp = false;
+        bool help = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
+        if (help && !previousHelp) showHelp = !showHelp;
+        previousHelp = help;
         static bool previousOne = false;
         static bool previousTwo = false;
 
@@ -449,9 +465,10 @@ namespace
 
 static int RunRoom(GLFWwindow* window)
 {
+    Shader hud("shaders/status.vert","shaders/status.frag");
     Shader depth("shaders/shadow.vert", "shaders/shadow.frag");
     Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
-    if (!shader.ID || !depth.ID)
+    if (!shader.ID || !depth.ID || !hud.ID)
     {
         return -1;
     }
@@ -481,84 +498,37 @@ static int RunRoom(GLFWwindow* window)
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    auto loadImage = [](const char* path) -> GLuint {
+        std::ifstream input(path, std::ios::binary);
+        std::string magic; int w = 0, h = 0, maxValue = 0;
+        input >> magic >> w >> h >> maxValue;
+        if (magic != "P6" || w < 1 || h < 1 || maxValue != 255) return 0;
+        input.get();
+        std::vector<unsigned char> pixels(3 * w * h);
+        if (!input.read(reinterpret_cast<char*>(pixels.data()),pixels.size())) return 0;
+        GLuint id;
+        glGenTextures(1,&id);
+        glBindTexture(GL_TEXTURE_2D,id);
+        glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,w,h,0,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+        return id;
+    };
+    GLuint landscape = loadImage("textures/dusk.ppm"), status = loadImage("textures/status.ppm");
+    GLuint helpPanel = loadImage("textures/help.ppm");
+    if (!landscape || !status || !helpPanel) { std::cerr << "Cannot load room textures\n"; return 1; }
+    GLuint hudVao;
+    glGenVertexArrays(1,&hudVao);
     auto drawScene = [&](Shader& shader) {
-        // Room
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(0.0f, -0.08f, 0.0f), glm::vec3(8.0f, 0.16f, 8.0f)),
-            glm::vec3(0.18f, 0.19f, 0.22f), true
-        );
-
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(0.0f, 2.0f, -4.0f), glm::vec3(8.0f, 4.0f, 0.16f)),
-            glm::vec3(0.34f, 0.31f, 0.27f)
-        );
-
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(-4.0f, 2.0f, 0.0f), glm::vec3(0.16f, 4.0f, 8.0f)),
-            glm::vec3(0.29f, 0.31f, 0.35f)
-        );
-
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(4.0f, 2.0f, 0.0f), glm::vec3(0.16f, 4.0f, 8.0f)),
-            glm::vec3(0.29f, 0.31f, 0.35f)
-        );
-
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(0.0f, 4.0f, 0.0f), glm::vec3(8.0f, 0.16f, 8.0f)),
-            glm::vec3(0.22f, 0.23f, 0.26f)
-        );
-
-        // Rug
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(0.0f, 0.025f, 1.0f), glm::vec3(5.5f, 0.05f, 3.6f)),
-            glm::vec3(0.14f, 0.12f, 0.12f), true
-        );
-
-        // Table top and legs
-        const glm::vec3 wood(0.25f, 0.11f, 0.045f);
-
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(0.0f, 1.02f, -1.45f), glm::vec3(4.4f, 0.22f, 2.5f)),
-            wood, false, glm::vec3(0.01f, 0.003f, 0.001f), 0.0f, 24.0f
-        );
-
-        for (float x : {-1.9f, 1.9f})
-        {
-            for (float z : {-2.4f, -0.5f})
-            {
-                DrawObject(
-                    *cube, shader,
-                    Transform(glm::vec3(x, 0.5f, z), glm::vec3(0.22f, 1.0f, 0.22f)),
-                    wood
-                );
-            }
-        }
-
-        // A small cabinet on the back wall.
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(-2.6f, 1.1f, -3.65f), glm::vec3(1.5f, 2.2f, 0.5f)),
-            glm::vec3(0.19f, 0.20f, 0.22f)
-        );
-
-        DrawObject(
-            *cube, shader,
-            Transform(glm::vec3(-2.6f, 1.1f, -3.34f), glm::vec3(1.2f, 1.9f, 0.04f)),
-            glm::vec3(0.07f, 0.09f, 0.12f)
-        );
-
+        DrawInterior(*cube, *cylinder, *sphere, shader);
         DrawLamp(*cylinder, *frustum, *sphere, shader, -1.25f, -1.45f, lamp1On);
         DrawLamp(*cylinder, *frustum, *sphere, shader, 1.25f, -1.45f, lamp2On);
 
-        DrawObject(*cylinder, shader, Transform({pendantPosition.x,3.72f,0.65f},{0.04f,0.56f,0.04f}), {0.15f,0.15f,0.15f});
-        DrawObject(*frustum, shader, Transform({pendantPosition.x,3.45f,0.65f},{0.95f,0.39f,0.95f}), {0.26f,0.43f,0.34f});
+        DrawObject(*cylinder, shader, Transform({pendantPosition.x,3.66f,-0.55f},{0.05f,0.68f,0.04f}), {0.15f,0.15f,0.15f});
+        DrawObject(*frustum, shader, Transform({pendantPosition.x,3.29f,-0.55f},{0.95f,0.39f,0.95f}), {0.26f,0.43f,0.34f});
         // The emitter sits at the shadow camera and must not occlude its own light.
         if (&shader != &depth)
             DrawObject(*sphere, shader, Transform(pendantPosition,{0.22f,0.22f,0.22f}), {0.4f,0.38f,0.3f},
@@ -566,7 +536,7 @@ static int RunRoom(GLFWwindow* window)
     };
     frustum->twoSided = true;
     shader.Use();
-    shader.SetVec3("ambientLight", glm::vec3(0.055f, 0.065f, 0.08f));
+    shader.SetVec3("ambientLight", glm::vec3(0.095f, 0.12f, 0.16f));
 
     while (!glfwWindowShouldClose(window))
     {
@@ -612,15 +582,15 @@ static int RunRoom(GLFWwindow* window)
         shader.SetMat4("projection", projection);
         shader.SetVec3("viewPos", camera.Position);
 
-        const glm::vec3 lamp1Position(-1.25f, 2.10f, -1.45f);
-        const glm::vec3 lamp2Position( 1.25f, 2.10f, -1.45f);
+        const glm::vec3 lamp1Position(-1.25f, 1.98f, -1.45f);
+        const glm::vec3 lamp2Position( 1.25f, 1.98f, -1.45f);
 
         shader.SetVec3("lights[0].position", lamp1Position);
         shader.SetVec3("lights[0].color", glm::vec3(1.0f, 0.45f, 0.12f));
         shader.SetFloat("lights[0].intensity", lamp1On ? 3.2f : 0.0f);
 
         shader.SetVec3("lights[1].position", lamp2Position);
-        shader.SetVec3("lights[1].color", glm::vec3(1.0f, 0.72f, 0.30f));
+        shader.SetVec3("lights[1].color", glm::vec3(0.40f, 0.68f, 1.0f));
         shader.SetFloat("lights[1].intensity", lamp2On ? 2.8f : 0.0f);
 
         shader.SetVec3("lights[2].position", pendantPosition);
@@ -632,17 +602,39 @@ static int RunRoom(GLFWwindow* window)
         shader.SetInt("shadowMap", 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, shadowMap);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D,landscape);
+        shader.SetInt("landscape",1);
         drawScene(shader);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+        hud.Use();
+        hud.SetFloat("width",static_cast<float>(framebufferWidth));
+        hud.SetFloat("height",static_cast<float>(framebufferHeight));
+        hud.SetVec3("lamps",{float(lamp1On), float(lamp2On), float(pendantOn)});
+        hud.SetBool("shadow",shadowsOn);
+        hud.SetInt("panel",1);
+        hud.SetBool("help",showHelp);
+        glBindTexture(GL_TEXTURE_2D,showHelp ? helpPanel : status);
+        glBindVertexArray(hudVao);
+        glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+        glBindVertexArray(0);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
+    glDeleteVertexArrays(1,&hudVao);
+    glDeleteTextures(1,&helpPanel);
+    glDeleteTextures(1,&status);
+    glDeleteTextures(1,&landscape);
     glDeleteTextures(1, &shadowMap);
     glDeleteFramebuffers(1, &shadowFbo);
     return 0;
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     auto assetRoot = std::filesystem::absolute(argv[0]).parent_path();
     if (std::filesystem::exists(assetRoot / "shaders"))
