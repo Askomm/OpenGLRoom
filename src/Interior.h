@@ -1,6 +1,6 @@
 #pragma once
 // Called in both passes so the same geometry casts and receives pendant shadows.
-static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader)
+static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader, bool sunPass = false)
 {
     using V = glm::vec3;
     const V oak(.39f,.21f,.095f), ink(.033f,.065f,.065f), linen(.12f,.38f,.34f);
@@ -8,6 +8,7 @@ static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader)
         shader.SetInt("pattern", pattern);
         DrawObject(box, shader, Transform(pos,size),color,false,V(0),0,gloss);
     };
+    if (!sunPass) {
     block({0,-.08,0},{8,.16,8},oak,1);
     block({0,2,-4},{8,4,.14},{.48,.46,.36});
     block({-4,2,0},{.14,4,8},{.26,.37,.34});
@@ -20,6 +21,7 @@ static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader)
     for (float x : {-1.87f,-.36f,1.16f,2.68f})
         block({x,2.48,-3.72},{.065,1.88,.09},oak);
     block({.4,1.52,-3.71},{4.72,.11,.26},oak);
+    }
     // Slatted wall beside the window and a low credenza.
     for(int i=0;i<9;++i) block({-3.78+i*.19,2,-3.82},{.075,3.83,.12},oak);
     block({-2.84,.77,-3.30},{1.76,1.4,.7},ink);
@@ -36,6 +38,14 @@ static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader)
     block({-.48,1.23,.68},{.83,.59,.12},linen,2);
     for(float x:{-.84f,-.12f}) for(float z:{.02f,.67f})
         block({x,.29,z},{.09,.58,.09},oak);
+    // Bed against the left wall, clear of the cabinet and writing desk.
+    block({-3.0f,.31f,.55f},{1.55f,.30f,2.65f},oak,1);
+    block({-3.0f,.56f,.55f},{1.45f,.22f,2.52f},{.83f,.79f,.68f});
+    block({-3.0f,.70f,.92f},{1.46f,.09f,1.78f},linen,2);
+    block({-3.0f,.75f,-.35f},{1.12f,.17f,.44f},{.92f,.87f,.75f});
+    block({-3.0f,.79f,-.84f},{1.62f,1.13f,.12f},oak,1);
+    for(float x : {-3.62f,-2.38f}) for(float z : {-.58f,1.68f})
+        block({x,.12f,z},{.12f,.24f,.12f},ink);
     // Books provide small, recognizable occluders on the writing surface.
     for(int i=0;i<3;++i) {
         float y=1.17f+i*.095f;

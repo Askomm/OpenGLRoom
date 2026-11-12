@@ -25,6 +25,8 @@ namespace
 
     Camera camera(glm::vec3(1.2f, 1.68f, 3.38f));
 
+    bool dayMode = false;
+    bool sunOn = true;
     bool showHelp = false;
     bool firstMouse = true;
     float lastMouseX = SCR_WIDTH * 0.5f;
@@ -420,10 +422,19 @@ namespace
             camera = Camera({1.2f,1.68f,3.38f});
             lamp1On = lamp2On = pendantOn = shadowsOn = true;
             exposure = 1.0f;
+            dayMode = false;
+            sunOn = true;
             pendantPosition.x = 0.75f;
             animatePendant = false;
             sweepDirection = 1.0f;
         }
+        static bool previousDay = false, previousSun = false;
+        const bool dayKey = glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS;
+        const bool sunKey = glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS;
+        if (dayKey && !previousDay) dayMode = !dayMode;
+        if (sunKey && !previousSun) sunOn = !sunOn;
+        previousDay = dayKey;
+        previousSun = sunKey;
         static bool previousHelp = false;
         bool help = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
         if (help && !previousHelp) showHelp = !showHelp;
@@ -498,6 +509,25 @@ static int RunRoom(GLFWwindow* window)
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    GLuint sunMap, sunFbo;
+    glGenTextures(1, &sunMap);
+    glBindTexture(GL_TEXTURE_2D, sunMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowSize, shadowSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenFramebuffers(1, &sunFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, sunFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, sunMap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Incomplete sun shadow framebuffer\n";
+        return 1;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     auto loadImage = [](const char* path) -> GLuint {
         std::ifstream input(path, std::ios::binary);
         std::string magic; int w = 0, h = 0, maxValue = 0;
@@ -518,12 +548,14 @@ static int RunRoom(GLFWwindow* window)
         return id;
     };
     GLuint landscape = loadImage("textures/dusk.ppm"), status = loadImage("textures/status.ppm");
+    GLuint daylight = loadImage("textures/day.ppm");
+    GLuint nightStatus = loadImage("textures/status-night.ppm");
     GLuint helpPanel = loadImage("textures/help.ppm");
-    if (!landscape || !status || !helpPanel) { std::cerr << "Cannot load room textures\n"; return 1; }
+    if (!landscape || !status || !helpPanel || !daylight || !nightStatus) { std::cerr << "Cannot load room textures\n"; return 1; }
     GLuint hudVao;
     glGenVertexArrays(1,&hudVao);
-    auto drawScene = [&](Shader& shader) {
-        DrawInterior(*cube, *cylinder, *sphere, shader);
+    auto drawScene = [&](Shader& shader, bool sunPass = false) {
+        DrawInterior(*cube, *cylinder, *sphere, shader, sunPass);
         DrawLamp(*cylinder, *frustum, *sphere, shader, -1.25f, -1.45f, lamp1On);
         DrawLamp(*cylinder, *frustum, *sphere, shader, 1.25f, -1.45f, lamp2On);
 
@@ -538,6 +570,10 @@ static int RunRoom(GLFWwindow* window)
     shader.Use();
     shader.SetVec3("ambientLight", glm::vec3(0.095f, 0.12f, 0.16f));
 
+    // Parallel rays descend through the window toward the left side of the room.
+    const glm::vec3 sunDirection = glm::normalize(glm::vec3(.65f,.65f,-1.0f));
+    const glm::mat4 sunVP = glm::ortho(-7.0f,7.0f,-7.0f,7.0f,.1f,30.0f)
+        * glm::lookAt(sunDirection*12.0f,glm::vec3(0),glm::vec3(0,1,0));
     while (!glfwWindowShouldClose(window))
     {
         const float currentFrame = static_cast<float>(glfwGetTime());
@@ -558,6 +594,14 @@ static int RunRoom(GLFWwindow* window)
             depth.Use();
             depth.SetMat4("lightVP", lightVP);
             drawScene(depth);
+        }
+        if (dayMode && sunOn && shadowsOn) {
+            glBindFramebuffer(GL_FRAMEBUFFER, sunFbo);
+            glViewport(0,0,shadowSize,shadowSize);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            depth.Use();
+            depth.SetMat4("lightVP",sunVP);
+            drawScene(depth,true);
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0,0,framebufferWidth,framebufferHeight);
@@ -581,6 +625,13 @@ static int RunRoom(GLFWwindow* window)
         shader.SetMat4("view", view);
         shader.SetMat4("projection", projection);
         shader.SetVec3("viewPos", camera.Position);
+        shader.SetVec3("ambientLight", dayMode ? glm::vec3(.24f,.28f,.32f) : glm::vec3(.095f,.12f,.16f));
+        shader.SetVec3("sunDirection",sunDirection);
+        shader.SetBool("sunEnabled",dayMode && sunOn);
+        shader.SetMat4("sunVP",sunVP);
+        shader.SetInt("sunMap",2);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D,sunMap);
 
         const glm::vec3 lamp1Position(-1.25f, 1.98f, -1.45f);
         const glm::vec3 lamp2Position( 1.25f, 1.98f, -1.45f);
@@ -603,7 +654,7 @@ static int RunRoom(GLFWwindow* window)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, shadowMap);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D,landscape);
+        glBindTexture(GL_TEXTURE_2D,dayMode ? daylight : landscape);
         shader.SetInt("landscape",1);
         drawScene(shader);
         glDisable(GL_DEPTH_TEST);
@@ -613,9 +664,10 @@ static int RunRoom(GLFWwindow* window)
         hud.SetFloat("height",static_cast<float>(framebufferHeight));
         hud.SetVec3("lamps",{float(lamp1On), float(lamp2On), float(pendantOn)});
         hud.SetBool("shadow",shadowsOn);
+        hud.SetBool("sun",dayMode && sunOn);
         hud.SetInt("panel",1);
         hud.SetBool("help",showHelp);
-        glBindTexture(GL_TEXTURE_2D,showHelp ? helpPanel : status);
+        glBindTexture(GL_TEXTURE_2D,showHelp ? helpPanel : (dayMode ? status : nightStatus));
         glBindVertexArray(hudVao);
         glDrawArrays(GL_TRIANGLE_STRIP,0,4);
         glBindVertexArray(0);
@@ -629,6 +681,10 @@ static int RunRoom(GLFWwindow* window)
     glDeleteTextures(1,&helpPanel);
     glDeleteTextures(1,&status);
     glDeleteTextures(1,&landscape);
+    glDeleteTextures(1,&daylight);
+    glDeleteTextures(1,&nightStatus);
+    glDeleteTextures(1,&sunMap);
+    glDeleteFramebuffers(1,&sunFbo);
     glDeleteTextures(1, &shadowMap);
     glDeleteFramebuffers(1, &shadowFbo);
     return 0;

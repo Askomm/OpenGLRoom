@@ -2,7 +2,7 @@
 
 Azamat Kuanyshpayev (IT-2514) and Arsen Galym (IT-2510). Final Computer Graphics Fundamentals walkthrough based on the team’s Week 5 commit d6688cc.
 
-Two desk fixtures illuminate a furnished study in amber and cool blue. A ceiling pendant travels across the room, casting filtered shadows on the desk, chair and rug. The initial 1280 × 720 view shows all three fixtures.
+Two desk fixtures illuminate a furnished study in amber and cool blue. A ceiling pendant travels across the room, casting filtered shadows on the desk, chair and rug. A bed sits against the left wall. Day mode adds a fourth source, directional sunlight through the window. The initial 1280 × 720 night view shows all three fixtures.
 
 ## Windows build and run
 
@@ -20,14 +20,16 @@ For Visual Studio 2022 use its matching generator, "Visual Studio 17 2022". Choo
 
 | Input | Action |
 | --- | --- |
-| W / A / S / D | Walk at eye height. The desk, chair, cabinet and room boundary block movement. |
+| W / A / S / D | Walk at eye height. The desk, chair, cabinet, bed and room boundary block movement. |
 | Mouse / wheel | Look / zoom, with a field of view from 25° to 75°. |
 | 1 / 2 / 3 | Toggle the amber desk lamp, cool desk lamp and pendant independently. |
-| H | Toggle the pendant shadow map and depth comparisons. |
+| H | Toggle pendant and sunlight shadow maps and depth comparisons. |
+| N | Switch day / night, updating the window view, ambient light and sunlight. |
+| 4 | Toggle direct sunlight during the day. |
 | J / L | Move the pendant left / right. |
 | Space | Start or pause automatic pendant travel. |
 | − / = | Hold to decrease / increase exposure. |
-| R | Restore the original camera, lights, exposure and stationary pendant. |
+| R | Restore the original camera, lights, exposure and stationary pendant and night mode. |
 | F1 | Open or close the on-screen control guide. |
 | Esc | Exit. |
 
@@ -38,6 +40,14 @@ For Visual Studio 2022 use its matching generator, "Visual Studio 17 2022". Choo
 3. Hold J or L. The pendant bulb and its shadow should move together. Press Space to start automatic travel and again to pause.
 4. Hold minus, then equal, to demonstrate tone mapping at different exposures. Press R to return to the default view.
 5. Resize the window on the lab PC. The perspective should follow the new framebuffer aspect. Press F1 for the key guide.
+
+## Sunlight and bed
+
+Press N for day, then 1, 2 and 3 to isolate sunlight. Press 4 to compare the direct sun contribution while keeping daylight ambient light. Look at the desk, bed and floor; H toggles furniture shadows. Press R to restore the night view.
+
+Sunlight is a fourth source with parallel rays in world space. It uses a 1024 × 1024 orthographic depth map with nine comparisons per fragment. A ray/window intersection admits direct light only through the opening and blocks the two interior mullions. Room walls and the opaque landscape panel are excluded from this depth pass because the analytical aperture supplies their visibility. Furniture and lamp meshes cast sun shadows. Night mode skips the sunlight pass. The sun uses the same Phong materials and exposure curve as the lamps.
+
+The bed has a timber frame, mattress, woven cover and pillow. Its bounds participate in camera collision.
 
 ## Code guide
 
@@ -54,7 +64,9 @@ For Visual Studio 2022 use its matching generator, "Visual Studio 17 2022". Choo
 
 ## Verification
 
-Both source stages were compiled and rendered using the same application scene code with scripted GLFW inputs and a Mesa OpenGL core context. The final build was timed on llvmpipe at 1280 × 720 after 15 warm-up frames. With the pendant shadow map it averaged 80.3 FPS, compared with 101.9 FPS without it (80 synchronized frames per run). The Windows/MSVC windowing path needs a native lab-machine run. The report lists the pixel checks, method, limitations, literature and asset credits.
+The report, slides, backup video and timing figures below describe the earlier three-fixture version. The bed/daylight revision adds a second shadow pass during daytime, so those timing figures are historical.
+
+Both source stages were compiled and rendered using the same application scene code with scripted GLFW inputs and a Mesa OpenGL core context. The final build was timed on llvmpipe at 1280 × 720 after 15 warm-up frames. With the pendant shadow map it averaged 80.3 FPS, compared with 101.9 FPS without it (80 synchronized frames per run). The previous Stage 1 build was confirmed on Windows/MSVC. The bed/daylight revision was compiled and rendered with Mesa llvmpipe and scripted input; it still needs a Windows runtime check. The report lists the pixel checks, method, limitations, literature and asset credits.
 
 ## Contributions and credits
 

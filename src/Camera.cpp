@@ -54,7 +54,8 @@ void Camera::ProcessKeyboard(
         return Position.x > left && Position.x < right && Position.z > back && Position.z < front;
     };
     if (inside(-2.20f,2.20f,-2.48f,-.42f) || inside(-1.10f,.15f,-.25f,.98f)
-        || inside(-3.9f,-1.80f,-3.9f,-2.75f)) Position = before;
+        || inside(-3.9f,-1.80f,-3.9f,-2.75f)
+        || inside(-3.95f,-2.02f,-1.04f,2.10f)) Position = before;
 }
 
 void Camera::ProcessMouseMovement(float xOffset, float yOffset, bool constrainPitch)

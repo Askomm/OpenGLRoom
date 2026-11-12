@@ -28,19 +28,23 @@ uniform sampler2D shadowMap;
 uniform mat4 lightVP;
 uniform bool shadowsOn;
 uniform float exposure;
+uniform sampler2D sunMap;
+uniform mat4 sunVP;
+uniform vec3 sunDirection;
+uniform bool sunEnabled;
 
 // Fraction of nine nearest depth samples visible to the pendant.
-float visibility(vec3 normal, vec3 lightDir)
+float visibility(sampler2D map, mat4 lightMatrix, vec3 normal, vec3 lightDir, float minimumBias)
 {
-    vec4 clip = lightVP * vec4(FragPos, 1.0);
+    vec4 clip = lightMatrix * vec4(FragPos, 1.0);
     vec3 p = clip.xyz / clip.w * 0.5 + 0.5;
     if (clip.w <= 0.0 || any(lessThan(p, vec3(0))) || any(greaterThan(p, vec3(1)))) return 1.0;
-    float bias = max(0.00018, 0.0012 * (1.0 - dot(normal, lightDir)));
-    vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
+    float bias = max(minimumBias, 0.0012 * (1.0 - dot(normal, lightDir)));
+    vec2 texel = 1.0 / vec2(textureSize(map, 0));
     float sum = 0.0;
     for (int y = -1; y <= 1; ++y)
         for (int x = -1; x <= 1; ++x)
-            sum += step(p.z - bias, texture(shadowMap, p.xy + vec2(x,y)*texel).r);
+            sum += step(p.z - bias, texture(map, p.xy + vec2(x,y)*texel).r);
     return sum / 9.0;
 }
 
@@ -108,9 +112,27 @@ void main()
         float weight = 1.0;
         if (i == 2) {
             weight = smoothstep(0.51, 0.72, lightDir.y);
-            if (shadowsOn) weight *= visibility(normal, lightDir);
+            if (shadowsOn) weight *= visibility(shadowMap, lightVP, normal, lightDir, 0.00018);
         }
         result += weight * (diffuse + specular) * attenuation * lights[i].intensity;
+    }
+
+    if (sunEnabled) {
+        // Trace toward the sun to the window plane. Only the opening admits direct light.
+        float distanceToWindow = (-3.78 - FragPos.z) / sunDirection.z;
+        vec3 entry = FragPos + distanceToWindow * sunDirection;
+        float aperture = step(0.0,distanceToWindow)
+            * step(-1.825,entry.x) * step(entry.x,2.625)
+            * step(1.60,entry.y) * step(entry.y,3.36);
+        // Two interior timber mullions also block the parallel rays.
+        aperture *= step(0.033,abs(entry.x + 0.36)) * step(0.033,abs(entry.x - 1.16));
+        float diffuse = max(dot(normal,sunDirection),0.0);
+        float specular = diffuse > 0.0
+            ? pow(max(dot(reflect(-sunDirection,normal),viewDir),0.0),shininess) : 0.0;
+        float visible = shadowsOn ? visibility(sunMap,sunVP,normal,sunDirection,0.0008) : 1.0;
+        float specularWeight = shininess >= 60.0 ? 0.60 : 0.045;
+        result += aperture * visible * 4.0 * vec3(1.0,.87,.64)
+            * (baseColor * diffuse + specularWeight * specular);
     }
 
     result += emissionColor * emissionStrength;
