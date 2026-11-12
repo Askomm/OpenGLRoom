@@ -47,7 +47,7 @@ Press N for day, then 1, 2 and 3 to isolate sunlight. Press 4 to compare the dir
 
 Sunlight is a fourth source with parallel rays in world space. It uses a 1024 × 1024 orthographic depth map with nine comparisons per fragment. A ray/window intersection admits direct light only through the opening and blocks the two interior mullions. Room walls and the opaque landscape panel are excluded from this depth pass because the analytical aperture supplies their visibility. Furniture and lamp meshes cast sun shadows. Night mode skips the sunlight pass. The sun uses the same Phong materials and exposure curve as the lamps.
 
-The bed has a timber frame, mattress, woven cover and pillow. Its bounds participate in camera collision.
+The bed has a timber frame, mattress, woven cover and pillow. Its bounds participate in camera collision. The desk, chair, books and both desk lamps are shifted 0.8 scene units to the right, leaving about 0.94 units between the headboard and desk. Geometry, light positions and camera collision use the shared DeskOffsetX in src/SceneLayout.h.
 
 ## Code guide
 

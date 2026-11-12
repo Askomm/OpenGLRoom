@@ -14,6 +14,7 @@
 
 #include "Camera.h"
 #include "Shader.h"
+#include "SceneLayout.h"
 
 namespace
 {
@@ -556,8 +557,8 @@ static int RunRoom(GLFWwindow* window)
     glGenVertexArrays(1,&hudVao);
     auto drawScene = [&](Shader& shader, bool sunPass = false) {
         DrawInterior(*cube, *cylinder, *sphere, shader, sunPass);
-        DrawLamp(*cylinder, *frustum, *sphere, shader, -1.25f, -1.45f, lamp1On);
-        DrawLamp(*cylinder, *frustum, *sphere, shader, 1.25f, -1.45f, lamp2On);
+        DrawLamp(*cylinder, *frustum, *sphere, shader, -1.25f + DeskOffsetX, -1.45f, lamp1On);
+        DrawLamp(*cylinder, *frustum, *sphere, shader, 1.25f + DeskOffsetX, -1.45f, lamp2On);
 
         DrawObject(*cylinder, shader, Transform({pendantPosition.x,3.66f,-0.55f},{0.05f,0.68f,0.04f}), {0.15f,0.15f,0.15f});
         DrawObject(*frustum, shader, Transform({pendantPosition.x,3.29f,-0.55f},{0.95f,0.39f,0.95f}), {0.26f,0.43f,0.34f});
@@ -633,8 +634,8 @@ static int RunRoom(GLFWwindow* window)
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D,sunMap);
 
-        const glm::vec3 lamp1Position(-1.25f, 1.98f, -1.45f);
-        const glm::vec3 lamp2Position( 1.25f, 1.98f, -1.45f);
+        const glm::vec3 lamp1Position(-1.25f + DeskOffsetX, 1.98f, -1.45f);
+        const glm::vec3 lamp2Position( 1.25f + DeskOffsetX, 1.98f, -1.45f);
 
         shader.SetVec3("lights[0].position", lamp1Position);
         shader.SetVec3("lights[0].color", glm::vec3(1.0f, 0.45f, 0.12f));

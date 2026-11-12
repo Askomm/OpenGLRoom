@@ -28,16 +28,16 @@ static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader, boo
     block({-2.84,1.50,-3.30},{1.85,.09,.79},oak,1);
     for(int i=0;i<3;++i) block({-3.38+i*.54,.84,-2.93},{.48,1.14,.04},{.26,.32,.25});
     block({0,.018,.60},{4.9,.035,3.25},{.22,.36,.32},2);
-    block({0,1.06,-1.45},{4.1,.16,1.75},oak,1);
+    block({DeskOffsetX,1.06,-1.45},{4.1,.16,1.75},oak,1);
     for(float x:{-1.82f,1.82f}) for(float z:{-2.12f,-.78f})
-        block({x,.50,z},{.12,1,.12},ink,0,72);
+        block({x + DeskOffsetX,.50,z},{.12,1,.12},ink,0,72);
     // Upholstered reading chair and timber frame.
-    block({-.48,.61,.35},{.93,.16,.90},oak);
-    block({-.48,.76,.35},{.88,.18,.83},linen,2);
-    block({-.48,1.22,.76},{.93,.74,.11},oak);
-    block({-.48,1.23,.68},{.83,.59,.12},linen,2);
+    block({-.48f + DeskOffsetX,.61,.35},{.93,.16,.90},oak);
+    block({-.48f + DeskOffsetX,.76,.35},{.88,.18,.83},linen,2);
+    block({-.48f + DeskOffsetX,1.22,.76},{.93,.74,.11},oak);
+    block({-.48f + DeskOffsetX,1.23,.68},{.83,.59,.12},linen,2);
     for(float x:{-.84f,-.12f}) for(float z:{.02f,.67f})
-        block({x,.29,z},{.09,.58,.09},oak);
+        block({x + DeskOffsetX,.29,z},{.09,.58,.09},oak);
     // Bed against the left wall, clear of the cabinet and writing desk.
     block({-3.0f,.31f,.55f},{1.55f,.30f,2.65f},oak,1);
     block({-3.0f,.56f,.55f},{1.45f,.22f,2.52f},{.83f,.79f,.68f});
@@ -49,8 +49,8 @@ static void DrawInterior(Mesh& box, Mesh& round, Mesh& ball, Shader& shader, boo
     // Books provide small, recognizable occluders on the writing surface.
     for(int i=0;i<3;++i) {
         float y=1.17f+i*.095f;
-        block({.35+i*.025,y,-1.1},{.58,.075,.39},{.78,.71,.52});
-        block({.35+i*.025,y+.043,-1.1},{.60,.018,.41},i==1?linen:ink);
+        block({.35f + DeskOffsetX + i*.025f,y,-1.1},{.58,.075,.39},{.78,.71,.52});
+        block({.35f + DeskOffsetX + i*.025f,y+.043,-1.1},{.60,.018,.41},i==1?linen:ink);
     }
     // Glazed ceramic vase on the cabinet.
     shader.SetInt("pattern",0);
